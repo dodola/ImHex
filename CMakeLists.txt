@@ -15,6 +15,7 @@ pkg_search_module(CAPSTONE REQUIRED capstone)
 find_package(OpenGL REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
 find_package(nlohmann_json REQUIRED)
+find_package(Freetype REQUIRED)
 find_package(Python COMPONENTS Interpreter Development)
 
 if(Python_VERSION LESS 3)
@@ -22,8 +23,11 @@ if(Python_VERSION LESS 3)
     message(FATAL_ERROR "No valid version of Python 3 was found.")
 endif()
 
-llvm_map_components_to_libnames(_llvm_libs demangle)
-llvm_expand_dependencies(llvm_libs ${_llvm_libs})
+llvm_map_components_to_libnames(_llvm_demangle_lib demangle)
+llvm_expand_dependencies(_llvm_demangle_lib ${_llvm_demangle_lib})
+
+# NOTE: if the demangle library cannot be found try to fallback to libLLVM (that is required on openSUSE and Gentoo)
+find_library(llvm_demangle_lib NAMES ${_llvm_demangle_lib} LLVM PATHS ${LLVM_LIBRARY_DIR})
 
 include_directories(include ${GLFW_INCLUDE_DIRS} ${CAPSTONE_INCLUDE_DIRS} ${LLVM_INCLUDE_DIRS} libs/ImGui/include libs/glad/include ${Python_INCLUDE_DIRS})
 
@@ -73,6 +77,7 @@ add_executable(ImHex
         source/views/view_disassembler.cpp
         source/views/view_bookmarks.cpp
         source/views/view_patches.cpp
+        source/views/view_command_palette.cpp
 
         libs/glad/source/glad.c
 
@@ -80,6 +85,7 @@ add_executable(ImHex
         libs/ImGui/source/imgui_draw.cpp
         libs/ImGui/source/imgui_widgets.cpp
         libs/ImGui/source/imgui_demo.cpp
+        libs/ImGui/source/imgui_freetype.cpp
         libs/ImGui/source/imgui_impl_glfw.cpp
         libs/ImGui/source/imgui_impl_opengl3.cpp
         libs/ImGui/source/ImGuiFileBrowser.cpp
@@ -91,9 +97,11 @@ add_executable(ImHex
 target_link_directories(ImHex PRIVATE ${LLVM_LIBRARY_DIR})
 
 if (WIN32)
-    target_link_libraries(ImHex libglfw3.a libgcc.a libstdc++.a libmagic.a libgnurx.a libtre.a libintl.a libiconv.a shlwapi.lib libcrypto.a libwinpthread.a libcapstone.a ${llvm_libs} ${Python_LIBRARIES} nlohmann_json::nlohmann_json)
+    target_link_libraries(ImHex libglfw3.a libgcc.a libstdc++.a libmagic.a libgnurx.a libtre.a libintl.a libiconv.a shlwapi.lib libcrypto.a libwinpthread.a libcapstone.a ${llvm_demangle_lib} ${Python_LIBRARIES} nlohmann_json::nlohmann_json Freetype::Freetype)
 endif (WIN32)
 
 if (UNIX)
-    target_link_libraries(ImHex libglfw.so libmagic.so libcrypto.so libdl.so libcapstone.so ${llvm_libs} ${Python_LIBRARIES} nlohmann_json::nlohmann_json)
+    target_link_libraries(ImHex libglfw.so libmagic.so libcrypto.so libdl.so libcapstone.so ${llvm_demangle_lib} ${Python_LIBRARIES} nlohmann_json::nlohmann_json Freetype::Freetype)
 endif (UNIX)
+
+install(TARGETS ImHex DESTINATION bin)
